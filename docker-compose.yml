@@ -1,6 +1,15 @@
 version: '3.7'
 
 services:
+
+  redis:
+    image: redis/redis-stack:latest   # Redis image
+    container_name: redis
+    networks:
+      - mynetwork
+    volumes:
+      - redis_data:/data  # Persist Redis data
+
   node-webapp:
     build:
       context: ./node-webapp
@@ -31,6 +40,8 @@ services:
       - "traefik.http.services.nodeapi.loadbalancer.server.port=3000"
     networks:
       - mynetwork
+    depends_on:
+      - redis  # Ensure Redis starts before node-api
     deploy:
       replicas: 3  # Set the number of replicas for the webapp
       resources:
@@ -38,6 +49,8 @@ services:
           memory: 500M  # Optional: Set resource limits
       restart_policy:
         condition: on-failure
+
+
     
   traefik:
     image: traefik:v2.5
@@ -56,3 +69,6 @@ services:
 networks:
   mynetwork:
     driver: bridge
+
+volumes:
+  redis_data:
