@@ -18,7 +18,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nodeapp.rule=Host(`${HOST}`)"
-      - "traefik.http.services.nodeapp.loadbalancer.server.port=80"
+      - "traefik.http.services.nodeapp.loadbalancer.server.port=3000"
     networks:
     - mynetwork
     deploy:
@@ -37,7 +37,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nodeapi.rule=Host(`${HOST}`) && PathPrefix(`/api`)"
-      - "traefik.http.services.nodeapi.loadbalancer.server.port=3000"
+      - "traefik.http.services.nodeapi.loadbalancer.server.port=3001"
     networks:
       - mynetwork
     depends_on:
@@ -50,7 +50,29 @@ services:
       restart_policy:
         condition: on-failure
 
-
+  node-ws:
+    build:
+      context: ./node-ws  
+    environment:
+      - REPLICA_NAME=${HOSTNAME}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nodews.rule=Host(`${HOST}`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.nodews.entrypoints=web"
+      - "traefik.http.routers.nodews.service=nodews"
+      - "traefik.http.routers.nodews.tls=false"  # Only needed if running HTTP, not HTTPS
+      - "traefik.http.services.nodews.loadbalancer.server.port=3002"
+      - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Upgrade=websocket"
+      - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Connection=Upgrade"
+      - "traefik.http.routers.nodews.middlewares=ws-headers"
+    networks:
+      - mynetwork
+    depends_on:
+      - redis  
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
     
   traefik:
     image: traefik:v2.5
