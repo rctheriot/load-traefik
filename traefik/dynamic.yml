@@ -1,0 +1,9 @@
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: "/certs/certificate.crt"
+        keyFile: "/certs/private-key.key"
+
+
+

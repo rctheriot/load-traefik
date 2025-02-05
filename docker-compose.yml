@@ -1,12 +1,9 @@
-version: '3.7'
 
 services:
 
   redis:
     image: redis/redis-stack:latest   # Redis image
     container_name: redis
-    networks:
-      - mynetwork
     volumes:
       - redis_data:/data  # Persist Redis data
 
@@ -18,9 +15,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nodeapp.rule=Host(`${HOST}`)"
+      - "traefik.http.routers.nodeapp.entrypoints=websecure"
       - "traefik.http.services.nodeapp.loadbalancer.server.port=3000"
-    networks:
-    - mynetwork
     deploy:
       replicas: 3  # Set the number of replicas for the webapp
       resources:
@@ -28,20 +24,19 @@ services:
           memory: 500M  # Optional: Set resource limits
       restart_policy:
         condition: on-failure
+
+
 
   node-api:
     build:
       context: ./node-api  # Path to your backend API code
-    environment:
-      - REPLICA_NAME=${HOSTNAME}
     labels:
       - "traefik.enable=true"
+      - "traefik.http.routers.nodeapi.entrypoints=websecure"
       - "traefik.http.routers.nodeapi.rule=Host(`${HOST}`) && PathPrefix(`/api`)"
       - "traefik.http.services.nodeapi.loadbalancer.server.port=3001"
-    networks:
-      - mynetwork
     depends_on:
-      - redis  # Ensure Redis starts before node-api
+      - redis
     deploy:
       replicas: 3  # Set the number of replicas for the webapp
       resources:
@@ -50,47 +45,43 @@ services:
       restart_policy:
         condition: on-failure
 
+
   node-ws:
     build:
       context: ./node-ws  
-    environment:
-      - REPLICA_NAME=${HOSTNAME}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nodews.rule=Host(`${HOST}`) && PathPrefix(`/ws`)"
-      - "traefik.http.routers.nodews.entrypoints=web"
+      - "traefik.http.routers.nodews.entrypoints=websecure"
       - "traefik.http.routers.nodews.service=nodews"
-      - "traefik.http.routers.nodews.tls=false"  # Only needed if running HTTP, not HTTPS
+      - "traefik.http.routers.nodews.tls=false"
       - "traefik.http.services.nodews.loadbalancer.server.port=3002"
       - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Upgrade=websocket"
       - "traefik.http.middlewares.ws-headers.headers.customrequestheaders.Connection=Upgrade"
       - "traefik.http.routers.nodews.middlewares=ws-headers"
-    networks:
-      - mynetwork
     depends_on:
       - redis  
     deploy:
-      replicas: 3
+      replicas: 3  # Set the number of replicas for the webapp
       restart_policy:
         condition: on-failure
+
     
   traefik:
-    image: traefik:v2.5
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker"
-      - "--entrypoints.web.address=:80"
+    image: traefik:v2
+    container_name: traefik
+    restart: always
     ports:
-      - "8080:8080"  # Traefik dashboard
-      - "80:80"      # HTTP entrypoint
+      - 8080:8080
+      - 80:80
+      - 443:443
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"  # Allow Traefik to access Docker
-    networks:
-      - mynetwork
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro"
+      - "./traefik/certs:/certs:ro"
 
-networks:
-  mynetwork:
-    driver: bridge
 
 volumes:
   redis_data:
+
